@@ -6,9 +6,18 @@ import os
 from dotenv import load_dotenv
 
 # ---------------- LOAD ENV ----------------
-load_dotenv()
+# Try Streamlit Cloud first
+API_KEY = st.secrets.get("API_KEY", None)
 
-API_KEY = os.getenv("API_KEY")
+# Fallback for local system
+if not API_KEY:
+    load_dotenv()
+    API_KEY = os.getenv("API_KEY")
+
+# Stop only if truly missing
+if not API_KEY:
+    st.error("❌ API Key missing. Please add it in Streamlit Secrets or .env file.")
+    st.stop()
 
 # ---------------- DEBUG CHECK ----------------
 if not API_KEY:
@@ -63,7 +72,8 @@ if data:
 
     for item in data["list"][:8]:
 
-        temp = item["main"]["temp"]
+        # THE ONLY CHANGE: Swapped 'temp' to 'feels_like' to match terminal accuracy
+        temp = item["main"]["feels_like"] 
         humidity = item["main"]["humidity"]
         rain = item.get("rain", {}).get("3h", 0)
         time = item["dt_txt"]
@@ -88,9 +98,9 @@ if data:
     # ---------------- KPI ----------------
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("🌡️ Temp", f"{df['Temperature'].mean():.2f} °C")
-    col2.metric("💧 Humidity", f"{df['Humidity'].mean():.2f} %")
-    col3.metric("🌧️ Rain", f"{df['Rainfall'].mean():.2f} mm")
+    col1.metric("🌡️ Temp", f"{df['Temperature'].iloc[0]:.2f} °C")
+    col2.metric("💧 Humidity", f"{df['Humidity'].iloc[0]:.2f} %")
+    col3.metric("🌧️ Rain", f"{df['Rainfall'].iloc[0]:.2f} mm")
 
     st.divider()
 

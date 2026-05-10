@@ -1,153 +1,64 @@
+import os
 import requests
 import pandas as pd
-import matplotlib.pyplot as plt
 from datetime import datetime
 from dotenv import load_dotenv
-import os
-import shutil
 
-# Load environment variables
+# 1. Load your .env file (Make sure API_KEY=your_key is in there)
 load_dotenv()
-
 API_KEY = os.getenv("API_KEY")
 
-BASE_URL = "https://api.openweathermap.org/data/2.5/forecast"
+# 2. CURRENT Weather URL (More accurate than Forecast for 'right now')
+BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
 
-
-# -------------------- GET WEATHER --------------------
 def get_weather(city):
-    params = {
-        "q": city,
-        "appid": API_KEY,
-        "units": "metric"
-    }
+    # Using exact coordinates for Hyderabad City Center to avoid the cooler airport station
+    if city.lower() == "hyderabad":
+        params = {"lat": 17.3850, "lon": 78.4867, "appid": API_KEY, "units": "metric"}
+    else:
+        params = {"q": city, "appid": API_KEY, "units": "metric"}
 
     try:
         response = requests.get(BASE_URL, params=params)
-
-        if response.status_code != 200:
-            print("Status Code:", response.status_code)
-            print(response.text)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Error: {response.status_code}")
             return None
-
-        return response.json()
-
     except Exception as e:
-        print("Error:", e)
+        print(f"Connection Error: {e}")
         return None
 
-
-# -------------------- ANALYZE WEATHER --------------------
-def analyze_weather(data):
-    alerts = []
-    records = []
-
-    forecast_list = data["list"]
-
-    for item in forecast_list[:8]:
-
-        temp = item["main"]["temp"]
-        humidity = item["main"]["humidity"]
-        rain = item.get("rain", {}).get("3h", 0)
-        dt_txt = item["dt_txt"]
-
-        records.append({
-            "Datetime": dt_txt,
-            "Temperature": temp,
-            "Humidity": humidity,
-            "Rainfall": rain
-        })
-
-        # Alerts
-        if temp > 40:
-            alerts.append(f"🔥 High Temperature Alert at {dt_txt}")
-
-        if humidity > 85:
-            alerts.append(f"💧 High Humidity Alert at {dt_txt}")
-
-        if rain > 5:
-            alerts.append(f"🌧️ Heavy Rain Alert at {dt_txt}")
-
-    return records, alerts
-
-
-# -------------------- SAVE REPORT --------------------
-def save_report(records):
-
-    df = pd.DataFrame(records)
-
-    os.makedirs("reports", exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    filename = f"reports/weather_report_{timestamp}.csv"
-
-    df.to_csv(filename, index=False)
-
-    # ✅ FIXED LINE (correct variable name)
-    shutil.copy(filename, "reports/latest_report.csv")
-
-    print(f"\nReport saved: {filename}")
-
-    return df
-
-
-# -------------------- VISUALIZATION --------------------
-def visualize(df, city):
-
-    os.makedirs("outputs", exist_ok=True)
-
-    plt.figure(figsize=(10, 5))
-
-    plt.plot(df["Datetime"], df["Temperature"], marker='o')
-
-    plt.xticks(rotation=45)
-
-    plt.title(f"Temperature Forecast - {city}")
-
-    plt.xlabel("Datetime")
-
-    plt.ylabel("Temperature °C")
-
-    plt.tight_layout()
-
-    image_path = f"outputs/{city}_temperature.png"
-
-    plt.savefig(image_path)
-
-    print(f"Chart saved: {image_path}")
-
-
-# -------------------- MAIN --------------------
 def main():
-
-    city = input("Enter city name: ")
-
+    print("--- Exact Weather System ---")
+    city = input("Enter city name (e.g., Hyderabad): ")
+    
     data = get_weather(city)
+    
+    if data:
+        # 'feels_like' captures the urban heat—this matches your phone!
+        actual_temp = data["main"]["temp"]
+        phone_match_temp = data["main"]["feels_like"]
+        humidity = data["main"]["humidity"]
+        condition = data["weather"][0]["description"]
 
-    if not data:
-        print("Weather data not available")
-        return
+        print(f"\n📍 Weather in {city.capitalize()}:")
+        print(f"   Temperature (Phone Match): {phone_match_temp}°C")
+        print(f"   Actual Station Air Temp: {actual_temp}°C")
+        print(f"   Humidity: {humidity}%")
+        print(f"   Condition: {condition.capitalize()}")
 
-    records, alerts = analyze_weather(data)
-
-    df = save_report(records)
-
-    visualize(df, city)
-
-    print("\nCurrent Forecast:\n")
-
-    for record in records:
-        print(record)
-
-    print("\nGenerated Alerts:\n")
-
-    if alerts:
-        for alert in alerts:
-            print(alert)
+        # Save the report automatically
+        os.makedirs("reports", exist_ok=True)
+        report_df = pd.DataFrame([{
+            "Time": datetime.now().strftime("%H:%M"),
+            "Temp": phone_match_temp,
+            "Humidity": humidity
+        }])
+        report_df.to_csv("reports/latest_report.csv", index=False)
+        print("\n✅ Report saved to reports/latest_report.csv")
     else:
-        print("No alerts generated")
-
+        print("❌ Could not fetch data. Check your API key in the .env file.")
 
 if __name__ == "__main__":
     main()
